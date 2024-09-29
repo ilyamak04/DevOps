@@ -18,3 +18,11 @@ Host *.com
         ServerAliveInterval 60
         ServerAliveCountMax 1200
 ```
+### SSH Agent
+SSH Agent выбирает ssh-ключи для подключения к соответствующим серверам
+
+Также использование ssh-agent позволяет вводить пароль от ключа только один раз, при первом подключении к серверу
+
+`eval $(ssh-agent)` - запускает ssh-agent
+
+`ssh-add ~/.ssh/id_rsa` - добавляет ключ в ssh-agent
