@@ -1,5 +1,5 @@
 ### Quick start
-- Устанавливаем ansible на машину 
+- Устанавливаем ansible на машину (Ansible Master)
 ```bash 
 # Для Ubuntu
 sudo apt update
