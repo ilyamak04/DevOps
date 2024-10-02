@@ -1,7 +1,6 @@
 ### Quick start
 - Устанавливаем ansible на машину (Ansible Master)
 ```bash 
-# Для Ubuntu
 sudo apt update
 sudo apt install software-properties-common
 sudo add-apt-repository --yes --update ppa:ansible/ansible
@@ -163,11 +162,11 @@ log_path = /var/log/ansible.log
 │   └── db_servers.yml
 └── playbook.yml
 ```
-Внутри директории group_vars могут находиться файлы с именами групп из инвентаря. Эти файлы содержат переменные, которые будут применяться ко всем хостам, принадлежащим к соответствующей группе.
+Внутри директории `group_vars` могут находиться файлы с именами групп из инвентаря. Эти файлы содержат переменные, которые будут применяться ко всем хостам, принадлежащим к соответствующей группе.
 
-- Файл web_servers.yml содержит переменные, которые будут применяться ко всем серверам группы web_servers.
+- Файл `web_servers.yml` содержит переменные, которые будут применяться ко всем серверам группы web_servers.
 
-- Файл all.yml содержит переменные для всех хостов, независимо от группы.
+- Файл `all.yml` содержит переменные для всех хостов, независимо от группы.
 
 #### Основные моменты
 - **Приоритеты**: Если переменные определены в нескольких местах, например, в файлах group_vars, host_vars или playbook, Ansible применяет переменные в следующем порядке:
@@ -185,6 +184,33 @@ log_path = /var/log/ansible.log
 - **Наследование переменных**: Переменные, определённые в файле для всех хостов (например, `group_vars/all.yml`), могут быть переопределены переменными, определёнными в группе конкретных хостов (например, `group_vars/web_servers.yml`).
 
 - **Формат файлов**: Файлы в директории `group_vars` могут быть в формате YAML или INI, хотя YAML используется чаще.
+
+### host_vars
+
+- Ansible автоматически подгружает переменные для конкретного хоста из файла, если этот файл находится в специальной директории `host_vars`
+- На уровне директории, где находится ваш инвентарь (файл `inventory`), вы создаёте папку с именем `host_vars` 
+```
+# Пример структуры файлов
+├── inventory
+├── host_vars/
+│   ├── server1.yaml
+│   ├── server2.yaml
+```
+- Переменные из файлов `host_vars` будут доступны при выполнении плейбука на соответствующих хостах
+```yml
+# host_vars/server1.yaml
+ansible_user: admin
+http_port: 8080
+db_name: production_db
+```
+```yml
+# Пример плейбука, использующего переменные из host_vars
+- hosts: server1
+  tasks:
+    - name: Показать значение переменной
+      ansible.builtin.debug:
+        var: http_port
+```
 
 ### Флаги
 - `-b` - от суперюзера
@@ -292,7 +318,7 @@ tasks:
 
 2. **Управление ошибками**: Можно задать специальную логику для обработки ошибок с помощью блоков `rescue` (обработчики ошибок) и `always` (выполняются всегда, независимо от успеха или неудачи).
 
-3. **Условия и циклы**: Можно использовать блоки для использования `when`, `with_items` и тп 
+3. **Условия и циклы**: Можно использовать блоки для использования `when`, `with_items` или `loop` и тп 
 
 ```yml
 # Пример с rescue и always
@@ -317,10 +343,110 @@ tasks:
 1. `block`: — основной блок, в котором определяются задачи. Если в нём произойдёт ошибка, выполнение перейдёт в секцию rescue.
 2. `rescue`: — блок для обработки ошибок. Выполняется, если одна из задач в блоке завершилась с ошибкой.
 3. `always`: — блок для задач, которые должны выполняться всегда, вне зависимости от того, произошла ошибка или нет (например, очистка или уведомления).
-4. `rescue` и `always` используются только в сочетании с блоками и относятся к конкретному блоку   
+4. `rescue` и `always` используются только с блоками и относятся к конкретному блоку   
 
+```yml
+# Пример блока с условием
+- hosts: localhost
+  tasks:
+    - name: Пример блока с условием
+      block:
+        - name: Выполнить команду echo
+          ansible.builtin.command: echo "Hello, World!"
+      when: ansible_facts['os_family'] == "Debian"
+```
+```yml
+# Блок с циклом
+- hosts: localhost
+  tasks:
+    - name: Установить несколько пакетов
+      block:
+        - name: Установить пакеты
+          ansible.builtin.apt:
+            name: "{{ item }}"
+            state: present
+          with_items:
+            - git
+            - vim
+            - htop
 
+      when: ansible_facts['os_family'] == "Debian"
+```
+```yml
+# Пример использования блоков с условиями
+- hosts: all
+  tasks:
+    - name: Проверка системы и установка пакетов
+      block:
+        - name: Установить curl
+          ansible.builtin.apt:
+            name: curl
+            state: present
 
+        - name: Установить git
+          ansible.builtin.apt:
+            name: git
+            state: present
+
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Установить пакеты для RedHat
+      block:
+        - name: Установить curl
+          ansible.builtin.yum:
+            name: curl
+            state: present
+
+        - name: Установить git
+          ansible.builtin.yum:
+            name: git
+            state: present
+
+      when: ansible_facts['os_family'] == "RedHat"
+```
+```yml
+- name: Add several users
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    state: present
+    groups: "{{ item.groups }}"
+  loop:
+    - { name: 'testuser1', groups: 'wheel' }
+    - { name: 'testuser2', groups: 'root' }
+```
+### Хендлеры (Handlers)
+
+Это специальные задачи, которые выполняются только при вызове через `notify`. Обычно они используются для выполнения действий, которые должны происходить после того, как одна или несколько задач изменили состояние системы. Например, изменение конфигурации сервиса. 
+
+- **Запускаются один раз за плейбук**: Если хендлер был вызван несколько раз в одном плейбуке, он выполнится только один раз, после выполнения всех остальных задач, изменивших состояние.
+
+- **Выполняются в конце выполнения задач**: Хендлеры выполняются после того, как все основные задачи завершились.
+
+- **Хендлеры выполняются по требованию**: Если задача не изменила состояние, хендлер не вызовется, даже если есть директива `notify`.
+
+- **Внутри хендлера можно использовать `when`**
+
+```yml
+- hosts: all
+  tasks:
+    - name: Обновить конфигурацию приложения
+      ansible.builtin.copy:
+        src: /path/to/config.yml
+        dest: /etc/myapp/config.yml
+      notify:
+        - Restart App
+        - Send Notification
+
+  handlers:
+    - name: Restart App
+      ansible.builtin.systemd:
+        name: myapp
+        state: restarted
+
+    - name: Send message
+      ansible.builtin.debug:
+        msg: "Конфигурация приложения обновлена, уведомление."
+```
 ### Модули
 
 // TODO Информацию о модулях выше, перенести в эту главу
@@ -338,3 +464,134 @@ tasks:
 ```
 - **Модуль set_fact** - для всяких разных операций с переменными в плейбуке
 
+> `ansible-galaxy collection install ansible.<collection_name>` - установить модуль
+
+### Директивы
+
+- **`register`** - используется для сохранения результатов выполнения задачи в переменной. Это позволяет вам использовать результаты задачи в последующих задачах внутри playbook.
+```yml
+- name: Register loop output as a variable
+  ansible.builtin.shell: "echo {{ item }}"
+  loop:
+    - "one"
+    - "two"
+  register: echo
+```
+После выполнения задачи, `echo` будет содержать информацию о каждой итерации, включая стандартный вывод, статус выполнения и другие данные.
+```yml
+- name: Print the registered output
+  ansible.builtin.debug:
+    var: echo
+```
+После выполнения задачи, вы можно использовать зарегистрированную переменную в следующих задачах
+```json
+{
+    "changed": true,
+    "msg": "All items completed",
+    "results": [
+        {
+            "changed": true,
+            "cmd": "echo \"one\" ",
+            "delta": "0:00:00.003110",
+            "end": "2013-12-19 12:00:05.187153",
+            "invocation": {
+                "module_args": "echo \"one\"",
+                "module_name": "shell"
+            },
+            "item": "one",
+            "rc": 0,
+            "start": "2013-12-19 12:00:05.184043",
+            "stderr": "",
+            "stdout": "one"
+        },
+        {
+            "changed": true,
+            "cmd": "echo \"two\" ",
+            "delta": "0:00:00.002920",
+            "end": "2013-12-19 12:00:05.245502",
+            "invocation": {
+                "module_args": "echo \"two\"",
+                "module_name": "shell"
+            },
+            "item": "two",
+            "rc": 0,
+            "start": "2013-12-19 12:00:05.242582",
+            "stderr": "",
+            "stdout": "two"
+        }
+    ]
+}
+```
+Примерная структура переменной в `register`
+```yml
+# Просто пример использования
+- name: Run shell command
+  hosts: all
+  tasks:
+    - name: List files and count them
+      ansible.builtin.shell: "ls -l | wc -l"
+      register: file_count
+
+    - name: Print the number of files
+      ansible.builtin.debug:
+        msg: "There are {{ file_count.stdout }} files in the directory."
+```
+
+- **`until`** - конструкция, которая используется для повторного выполнения задачи до тех пор, пока не будет выполнено определенное условие
+```yml
+# Основной синтаксис
+- name: Task description            # Условие, при выполнении которого задача завершится
+  ansible.builtin.module_name:      
+    parameters                      
+  register: result_variable         # Сохраняет результат выполнения задачи в указанной переменной, которая затем используется в условии until.
+  until: result_variable.condition  # Условие, при выполнении которого задача завершится.
+  retries: number_of_retries        # Общее количество повторных попыток, которые будут сделаны, если условие until не выполнено
+  delay: delay_in_seconds           # Время (в секундах) для ожидания между попытками выполнения задачи
+```
+```yml
+# Пример
+- name: Start a service
+  ansible.builtin.systemd:
+    name: my_service
+    state: started
+
+- name: Wait for the service to be active
+  ansible.builtin.shell: "systemctl is-active my_service"
+  register: result
+  until: result.stdout == "active"
+  retries: 5
+  delay: 2
+
+- name: Notify that the service is active
+  ansible.builtin.debug:
+    msg: "The service is now active."
+```
+- **`with_fileglob`** - используется для итерации по файлам в директории, соответствующим определённому шаблону
+    - Работает только с файлами на локальном хосте (где запущен Ansible).
+    - Если в шаблоне не найдено ни одного файла, Ansible просто пропустит задачу.
+    - Путь в `with_fileglob` должен быть **абсолютным**. 
+```yml
+- hosts: all
+  become: true
+  tasks:
+    - name: Копировать конфигурационные файлы и установить правильные разрешения
+      ansible.builtin.copy:
+        src: "{{ item }}"            # Локальный путь к файлам
+        dest: /etc/myapp/configs/
+        mode: '0644'                 
+      with_fileglob:
+        - "/etc/myapp/configs/*.conf"
+```
+```yml
+# Можно использовать несколько шаблонов
+- hosts: webservers
+  become: true
+  tasks:
+    - name: Копировать конфигурационные и скриптовые файлы
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: /etc/myapp/
+      with_fileglob:                # Можно использовать несколько шаблонов
+        - "/etc/myapp/configs/*.conf"
+        - "/etc/myapp/scripts/*.sh"
+```
