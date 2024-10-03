@@ -464,6 +464,48 @@ tasks:
 ```
 - **Модуль set_fact** - для всяких разных операций с переменными в плейбуке
 
+- **Модуль  template** - Используется для создания конфигурационных файлов и других текстовых файлов на целевых хостах на основе шаблонов Jinja2. Это позволяет динамически генерировать файлы с переменными, которые могут меняться в зависимости от окружения или настроек. Модуль `template` читает шаблон, подставляет значения переменных и создает итоговый файл на целевом хосте.
+```yml
+# Пример синтаксиса модуля
+- name: Копировать шаблон конфигурационного файла
+  ansible.builtin.template:
+    src: /path/to/template.j2   # Путь к шаблону на Ansible Master
+    dest: /path/to/destination.conf  # Путь, куда будет записан итоговый файл на целевом хосте
+```
+Боевой ример исользования `tenplate`
+```j2
+# Файл-шаблон nginx.conf.j2
+server {
+    listen {{ http_port }};
+    server_name {{ server_name }};
+    
+    location / {
+        proxy_pass http://{{ backend_service }};
+    }
+}
+```
+```yml
+- hosts: web_servers
+  vars:
+    http_port: 80
+    server_name: example.com
+    backend_service: backend:5000
+  tasks:
+    - name: Копировать шаблон конфигурации Nginx
+      ansible.builtin.template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/conf.d/example.conf
+      notify:
+        - перезапустить nginx
+
+  handlers:
+    - name: перезапустить nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+```
+Таска `Копировать шаблон конфигурации Nginx` берет шаблон `nginx.conf.j2`, рендерит его с подстановкой переменных и записывает в файл `/etc/nginx/conf.d/example.conf` на целевом хосте.
+
 > `ansible-galaxy collection install ansible.<collection_name>` - установить модуль
 
 ### Директивы
@@ -595,3 +637,15 @@ tasks:
         - "/etc/myapp/configs/*.conf"
         - "/etc/myapp/scripts/*.sh"
 ```
+### Секреты (Ansible Vault)
+Позволяет шифровать конфиденциальные данные, такие как файлы с переменными, плейбуки, конфигурации или любые другие файлы, требующие защиты
+- `ansible-vault create secret.yml` - создание зашифрованного файла
+- `ansible-vault edit secret.yml` - редактирование зашифрованного файла
+- `ansible-vault encrypt secret.yml` - шифрование уже сущ. файла
+- `ansible-vault decrypt secret.yml` - расшифровка файла
+- `ansible-vault view secret.yml` - cat для зашифрованного файла 
+- `ansible-vault rekey secret.yml` - поменять пароль для зашифрованного файла 
+- `ansible-playbook playbook_vault.yml --vault-password-file mypassword.txt`
+- **`ansible-playbook playbook.yml --ask-vault-pass`** - запуск плейбука с расшифровкой
+
+
