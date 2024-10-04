@@ -645,7 +645,153 @@ server {
 - `ansible-vault decrypt secret.yml` - расшифровка файла
 - `ansible-vault view secret.yml` - cat для зашифрованного файла 
 - `ansible-vault rekey secret.yml` - поменять пароль для зашифрованного файла 
-- `ansible-playbook playbook_vault.yml --vault-password-file mypassword.txt`
+- `ansible-playbook playbook_vault.yml --vault-password-file mypassword.txt` - пароль для запуска плейбука берётся из файла
 - **`ansible-playbook playbook.yml --ask-vault-pass`** - запуск плейбука с расшифровкой
+- `ansible-vault encrypt_string --stdin-name` "MyPassword" - зашифровать строку
+- `echo -n "MyPassword" | ansible-vault encrypt_string` - зашифровать строку
+---
+- `ansible all -m ping -b --extra-vars '@vault.yml' --extra-vars "ansible_become_pass={{ vault_sudo_passwords[inventory_hostname] }}" --ask-vault-pass` - пинг хостов с разными паролями юзеров    
 
+### Роли 
+```bash
+# init role 
+mkdir roles
+cd roles
+ansible-galaxy init first_role
+```
+```bash
+# Структура роли
+└── first_role
+    ├── defaults
+    │   └── main.yml
+    ├── files
+    ├── handlers
+    │   └── main.yml
+    ├── meta
+    │   └── main.yml
+    ├── README.md
+    ├── tasks
+    │   └── main.yml
+    ├── templates
+    ├── tests
+    │   ├── inventory
+    │   └── test.yml
+    └── vars
+        └── main.yml
+```
+`tasks/main.yml`: Здесь находятся задачи, которые выполняет роль. Это основной файл задач, аналогичный тем, что вы пишете в плейбуках. Можно разделить задачи по отдельным файлам и включать их в main.yml.
 
+`handlers/main.yml`: Хендлеры, которые вызываются при изменении состояния задач. Они перезапускают сервисы, если это необходимо.
+
+`files/`: В эту папку вы кладете файлы, которые должны быть скопированы на удаленные хосты с помощью модуля copy.
+
+`templates/`: Здесь хранятся шаблоны Jinja2, которые можно использовать для создания динамических файлов конфигурации, применяя переменные.
+
+`vars/main.yml`: Здесь определяются переменные для роли. Эти переменные имеют более высокий приоритет по сравнению с переменными из defaults.
+
+`defaults/main.yml`: Здесь определяются переменные с наименьшим приоритетом. Они могут быть переопределены переменными из других файлов.
+
+`meta/main.yml`: В этом файле содержатся метаданные роли, такие как ее зависимости от других ролей.
+
+`tests/`: Папка для тестирования роли. Здесь можно хранить тестовые плейбуки и инвентарь.
+
+**Приоритет переменных**
+1. Переменные командной строки
+2. Переменные в плейбуках
+3. Переменные в `host_vars` или `group_vars`
+4. Переменные роли из `vars/`
+5. Переменные роли из `defaults/`
+
+Зависимости можно указать в файле `meta/main.yml`. Например, если роль зависит от другой роли, то она будет автоматически вызвана:
+```yml
+dependencies:
+  - role: common
+  - role: security
+```
+
+Роль можно протестировать с помощью специального тестового плейбука. Например, в папке `tests/` может быть файл `test.yml`, который проверяет работу роли:
+```yml
+- hosts: localhost
+  roles:
+    - myrole
+```
+Для тестирования можно просто запустить этот плейбук:
+```bash
+ansible-playbook tests/test.yml
+```
+
+**Разница между `defaults/` и `vars/`**
+
+- `defaults/` может содержать такие переменные, как версии ПО, которые можно легко изменить для разных окружений.
+
+- `vars/` будет содержать важные и фиксированные настройки, такие как адреса серверов или пути к файлам, которые редко меняются.
+
+```yml
+# Пример плейбука
+- name: Playbook
+  hosts: all
+  become: yes
+
+  roles:
+    - { role: my_role, when: ansible_system == "Linux" }
+```
+В условии можно использовать логически операторы (`and`, `or` и `not (!=)`)
+```yml
+- { role: my_role, when: ansible_distribution == "Ubuntu" and ansible_distribution_version == "20.04" }
+```
+Если переменная может быть не определена, можем проверить её наличие 
+```yml
+- { role: my_role, when: my_var is defined }
+```
+Можно проверять значения словаря в списках
+```yml
+- { role: my_role, when: my_dict.key == "value" }
+```
+### extra-vars
+
+```yml
+- name: Playbook
+  hosts: "{{ MYHOST }}"
+  become: yes
+
+  roles:
+    - my_role
+```
+**Как передать переменную в плейбук?**
+```bash
+ansible-playbook playbook.yml --extra-var "MYHOSTS=STAGING"
+```
+Можно писать:
+- --extra-var
+- --extra-vars
+- -e
+
+`extra-var` имеет наивысший приоритет и переопределяет все остальные переменные, т.к. это оп сути переменная внутри плейбука
+
+### import и include
+
+- `import_*` - загружает все задачи из указанного файла на этапе **разбора плейбука (parse time)**, то есть перед выполнением задач
+- `include_*` - Загружает задачи динамически на этапе выполнения **(runtime)**
+- `include_tasks`
+    ```yml
+    - name: Include tasks dynamically
+      include_tasks: dynamic_tasks.yml
+    ```
+- `import_playbook` - загружает целый плейбук на этапе разбора **(parse time)**
+- `include_playbook` - устарела
+- `import_role`
+    ```yml
+    - name: Import a role
+      import_role:
+      name: webserver
+    ```
+
+Когда использовать `import`, а когда `include`?
+
+ `import`:
+- Когда нужно загрузить фиксированный набор задач, плейбуков или ролей.
+- Когда условия и переменные известны на этапе разбора (parse time).
+
+ `include`:
+- Когда требуется динамическое выполнение в зависимости от условий.
+- Когда необходимо передать переменные или использовать цикл для включения.
