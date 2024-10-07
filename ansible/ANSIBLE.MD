@@ -637,6 +637,133 @@ server {
         - "/etc/myapp/configs/*.conf"
         - "/etc/myapp/scripts/*.sh"
 ```
+- **`any_errors_fatal : (true || false)`** - прекращает выполнение плейбука, если хоть одна таска на одном из хостов падает с ошибкой
+```yml
+- name: Ansible 
+  hosts: all
+  any_errors_fatal: true
+  become: yes
+
+  tasks:
+    - name: ...
+```
+- **`ignore_errors : (yes || no)`** - если таска падает с ошибкой, плейбук продолжает выполняться
+```yml
+tasks: 
+  - name: Task Number
+    apt:
+      name: nginx
+      state: present
+    ignore_errors: yes 
+```
+
+- **`failed_when`** - таска падает или не падает в зависимости от условия. `failed_when` принимает логическое выражение. Если это выражение истинно (true), задача считается неудачной, даже если команда выполнена успешно (с кодом возврата 0)
+```yml
+- name: Example task
+  command: /path/to/some/command
+  register: result
+  failed_when: result.rc != 0 and result.stdout != "expected output"
+```
+```yml
+- name: Check if service is running
+  command: systemctl status my_service
+  register: service_status
+  failed_when: "'inactive' in service_status.stdout"
+```
+```yml
+- name: Run a command
+  command: /path/to/some/command
+  register: command_result
+  failed_when: command_result.rc != 0 and 'error' in command_result.stderr
+```
+
+- **`changed_when`** - позволяет кастомно определить условие `changed`, не останавливает выполнение задачи, влияет только на вывод работы плейбука. благодаря `changed_when` можно контролировать, как Ansible оценивает, изменила ли она что-либо в системе.
+
+```yml
+- name: Example task
+  command: /path/to/some/command
+  register: result
+  changed_when: result.stdout != "no changes"
+```
+- **`group_by`** - в Ansible используется для динамического создания групп хостов на основе определённых условий. Модуль `group_by` может создавать группы на основе любых фактов, доступных через `ansible_facts`, а также на основе данных из инвентаря или других переменных. `group_by` не изменяет инвентарь
+```yml
+# Синтаксис
+- name: Group hosts by operating system
+  group_by:
+    key: "os_{{ ansible_facts['distribution'] }}"
+```
+```yml
+# Пример
+- hosts: os_Ubuntu
+  tasks:
+    - name: Install package on Ubuntu hosts
+      apt:
+        name: vim
+        state: present
+
+- hosts: os_CentOS
+  tasks:
+    - name: Install package on CentOS hosts
+      yum:
+        name: vim
+        state: present
+```
+```yml
+# Группировка хостов по оперативной памяти
+- name: Group hosts by available RAM
+  group_by:
+    key: "ram_{{ (ansible_facts['memtotal_mb'] // 1024) }}GB"
+```
+- **`tags`** - теги (tags) позволяют управлять выполнением отдельных задач или целых плейбуков, предоставляя возможность запускать только те части плейбука, которые вам нужны, вместо выполнения всех задач. Теги особенно полезны для ускорения процесса, когда нужно протестировать только определенные задачи или фрагменты плейбука
+
+    - Управление выполнением задач: Вы можете назначать тег задачам или блокам задач, а затем запускать playbook с флагом `--tags`, чтобы выполнить только эти задачи.
+
+    - Исключение задач: С помощью `--skip-tags` можно исключать выполнение задач с определенными тегами.
+```yml
+# Теги тасок 
+- name: Install Nginx
+  apt:
+    name: nginx
+    state: present
+  tags:
+    - install
+    - webserver
+
+- name: Copy configuration file
+  template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/nginx.conf
+  tags:
+    - config
+```
+```yml
+# Теги плейбука 
+- hosts: webservers
+  tags: 
+    - setup
+  tasks:
+    - name: Install Apache
+      apt:
+        name: apache2
+        state: present
+    - name: Start Apache service
+      service:
+        name: apache2
+        state: started
+```
+```yml
+# Теги для ролей
+- hosts: all
+  roles:
+    - role: common
+      tags: common
+    - role: webserver
+      tags: web
+```
+- `ansible-playbook site.yml --tags "install,config"` - поддерживается работа с несколькими тегами
+- `ansible-playbook site.yml --tags "install" --skip-tags "config"` - выполнить только установку серверов пропуская конфигурацию (пример использования) 
+
+
 ### Секреты (Ansible Vault)
 Позволяет шифровать конфиденциальные данные, такие как файлы с переменными, плейбуки, конфигурации или любые другие файлы, требующие защиты
 - `ansible-vault create secret.yml` - создание зашифрованного файла
@@ -679,6 +806,17 @@ ansible-galaxy init first_role
     └── vars
         └── main.yml
 ```
+Можно указать путь к роли в инвентаре
+```ini
+[defaults]
+roles_path = ./roles:/etc/ansible/roles:/another/path/to/roles # : - это разделение нескольких путей
+```
+
+Можно закинуть роль в глобальный каталог
+```bash
+ansible-galaxy install <роль> -p /etc/ansible/roles
+```
+
 `tasks/main.yml`: Здесь находятся задачи, которые выполняет роль. Это основной файл задач, аналогичный тем, что вы пишете в плейбуках. Можно разделить задачи по отдельным файлам и включать их в main.yml.
 
 `handlers/main.yml`: Хендлеры, которые вызываются при изменении состояния задач. Они перезапускают сервисы, если это необходимо.
@@ -697,10 +835,11 @@ ansible-galaxy init first_role
 
 **Приоритет переменных**
 1. Переменные командной строки
-2. Переменные в плейбуках
-3. Переменные в `host_vars` или `group_vars`
-4. Переменные роли из `vars/`
-5. Переменные роли из `defaults/`
+2. Переменные, объявленные в `vars` внутри плейбука.
+3. Переменные, объявленные в `vars` внутри роли.
+5. Переменные, определенные в `host_vars`.
+4. Переменные, определенные в `group_vars`.
+6. Переменные, объявленные в `defaults` внутри роли.
 
 Зависимости можно указать в файле `meta/main.yml`. Например, если роль зависит от другой роли, то она будет автоматически вызвана:
 ```yml
@@ -795,3 +934,196 @@ ansible-playbook playbook.yml --extra-var "MYHOSTS=STAGING"
  `include`:
 - Когда требуется динамическое выполнение в зависимости от условий.
 - Когда необходимо передать переменные или использовать цикл для включения.
+
+### Best practice
+- Писать `hosts : all`, а потом юзать в тасках `when` - **bad practice**
+- Инвентарь в `yml` формате
+- `host_vars` - это временное решение (на хостах завязываться не стоит), лучше объединить в группу с одним хостом в инвентаре и прописывать переменные в `group_vars` 
+- Можно писать переменные внутри инвентаря, если это общая переменная для многих хостов, чтобы создавать лишние `group_vars` и не плодить сущности
+- Не управляем пользователями и контейнерами с помощью `Ansible` для этого есть специализированные инструменты.
+- Писать роль отвечающую за компонент целиком (например, роль для NGINX)
+
+- Разные инвентари для разные сред (инвентарь для прода, дева и тд)
+- Группируй однотипные задачи с помощью `block`
+- Роли долнжны быть слабосвязаны, избегать зависимости между ролями
+- Проверьте, какие задачи будут запущены перед выполнением: Вы можете использовать флаг `--list-tasks` для подтверждения того, какие задачи будут запущены без их фактического выполнения. Вы можете использовать флаг `--list-hosts`: так вы убедитесь в том, на какие хосты повлияет плейбук, но при этом не запустить его
+- Убедитесь в том, что вы собрались менять, но при этом не запускайте обновления: Используйте флаг `--check` для прогнозирования изменений, которые могут произойти. Объедините его с флагом `--diff`, чтобы показать различия в измененных файлах.
+- Пример архитектуры
+```yml 
+production                # inventory file for production servers
+staging                   # inventory file for staging environment
+
+group_vars/
+   group1.yml             # here we assign variables to particular groups
+   group2.yml
+host_vars/
+   hostname1.yml          # here we assign variables to particular systems
+   hostname2.yml
+
+library/                  # if any custom modules, put them here (optional)
+module_utils/             # if any custom module_utils to support modules, put them here (optional)
+filter_plugins/           # if any custom filter plugins, put them here (optional)
+
+site.yml                  # master playbook
+webservers.yml            # playbook for webserver tier
+dbservers.yml             # playbook for dbserver tier
+
+roles/
+    common/               # this hierarchy represents a "role"
+        tasks/            #
+            main.yml      #  <-- tasks file can include smaller files if warranted
+        handlers/         #
+            main.yml      #  <-- handlers file
+        templates/        #  <-- files for use with the template resource
+            ntp.conf.j2   #  <------- templates end in .j2
+        files/            #
+            bar.txt       #  <-- files for use with the copy resource
+            foo.sh        #  <-- script files for use with the script resource
+        vars/             #
+            main.yml      #  <-- variables associated with this role
+        defaults/         #
+            main.yml      #  <-- default lower priority variables for this role
+        meta/             #
+            main.yml      #  <-- role dependencies
+        library/          # roles can also include custom modules
+        module_utils/     # roles can also include custom module_utils
+        lookup_plugins/   # or other types of plugins, like lookup in this case
+
+    webtier/              # same kind of structure as "common" was above, done for the webtier role
+    monitoring/           # ""
+    fooapp/               # ""
+```
+- Пример архитектуры
+```yml 
+inventories/
+   production/
+      hosts               # inventory file for production servers
+      group_vars/
+         group1.yml       # here we assign variables to particular groups
+         group2.yml
+      host_vars/
+         hostname1.yml    # here we assign variables to particular systems
+         hostname2.yml
+
+   staging/
+      hosts               # inventory file for staging environment
+      group_vars/
+         group1.yml       # here we assign variables to particular groups
+         group2.yml
+      host_vars/
+         stagehost1.yml   # here we assign variables to particular systems
+         stagehost2.yml
+
+library/
+module_utils/
+filter_plugins/
+
+site.yml
+webservers.yml
+dbservers.yml
+
+roles/
+    common/
+    webtier/
+    monitoring/
+    fooapp/
+```
+- Пример статического инвентаря 
+```ini
+# file: production
+[atlanta_webservers]
+www-atl-1.example.com
+www-atl-2.example.com
+
+[boston_webservers]
+www-bos-1.example.com
+www-bos-2.example.com
+
+[atlanta_dbservers]
+db-atl-1.example.com
+db-atl-2.example.com
+
+[boston_dbservers]
+db-bos-1.example.com
+
+# webservers in all geos
+[webservers:children]
+atlanta_webservers
+boston_webservers
+
+# dbservers in all geos
+[dbservers:children]
+atlanta_dbservers
+boston_dbservers
+
+# everything in the atlanta geo
+[atlanta:children]
+atlanta_webservers
+atlanta_dbservers
+
+# everything in the boston geo
+[boston:children]
+boston_webservers
+boston_dbservers
+```
+- В `site.yml` мы импортируем плейбуки, которые определяют всю нашу инфраструктуру
+```yml
+---
+# file: site.yml
+- import_playbook: webservers.yml
+- import_playbook: dbservers.yml
+```
+- Идея здесь в том, что мы можем выбрать настройку всей нашей инфраструктуры, «запустив» `site.yml`, или мы могли бы просто выбрать запуск подмножества, запустив `webservers.yml`. Это аналогично параметру `«–limit» в ansible`, но немного более явно
+```bash 
+ansible-playbook site.yml --limit webservers
+ansible-playbook webservers.yml
+```
+- Только для серверов в Бостоне
+```bash
+ansible-playbook -i production webservers.yml --limit boston
+```
+- Для первых 10, потом следущие 10 
+```bash
+ansible-playbook -i production webservers.yml --limit boston[0:9]
+ansible-playbook -i production webservers.yml --limit boston[10:19]
+```
+```bash
+# confirm what task names would be run if I ran this command and said "just ntp tasks"
+ansible-playbook -i production webservers.yml --tags ntp --list-tasks
+```
+```bash
+# confirm what hostnames might be communicated with if I said "limit to boston"
+ansible-playbook -i production webservers.yml --limit boston --list-hosts
+```
+- Как также упоминалось выше, хороший способ разделить среды подготовки (или тестирования) и производства - использовать отдельный файл инвентаризации для dev и prod. Таким образом, вы выбираете с помощью `-i` на инвентарь. Хранение их всех в одном файле может привести к непрогнозируемому поведению! Тестирование промежуточной среде перед тем, как выкатывать на prod, всегда является отличной идеей. Ваши среды не обязательно должны быть одинакового размера, и вы можете использовать групповые переменные для управления различиями между этими средами.
+- Параметр `'state'` является необязательным для многих модулей. Будь то `'state=present'` или `'state=absent'`, всегда лучше оставить этот параметр в своих плейбуках, чтобы сделать его понятным, особенно потому, что некоторые модули поддерживают дополнительные состояния.
+- Если вам приходится иметь дело с параметром, который отличается в двух разных операционных системах, отличным способом решения этой проблемы является использование модуля `group_by`. Это создает динамическую группу хостов, соответствующих определенным критериям, даже если эта группа не определена в файле инвентаризации. Это позволит объединить все системы в динамическую группу на основе имени операционной системы.
+```yml
+ - name: talk to all hosts just so we can learn about them
+   hosts: all
+   tasks:
+     - name: Classify hosts depending on their OS distribution
+       group_by:
+         key: os_{{ ansible_facts['distribution'] }}
+
+ # now just on the CentOS hosts...
+
+ - hosts: os_CentOS
+   gather_facts: False
+   tasks:
+     - # tasks that only happen on CentOS go here
+```
+Если необходимы настройки, специфичные для группы, это также можно сделать. Например:
+```yml
+---
+# file: group_vars/all
+asdf: 10
+
+---
+# file: group_vars/os_CentOS
+asdf: 42
+```
+- Используй `name` в тасках
+- Используйте контроль версий. Храните ваши плейбуки и файл `inventory` в `git` (или другой системе контроля версий) и фиксируйте изменения, когда вносите в них изменения. Таким образом, у вас будет аудиторский след, описывающий, когда и почему вы изменили правила, автоматизирующие вашу инфраструктуру.
+
+- **Переменные и секреты:** начнём с `group_vars/` подкаталога, названного в честь группы. Внутри этого подкаталога создайте два файла с именами `vars` и `vault`. Внутри файла `vars` определите все необходимые переменные, включая любые конфиденциальные. Затем скопируйте все конфиденциальные переменные в файл `vault` и добавьте к этим переменным префикс `vault_`. Вам следует настроить переменные в `vars` файле так, чтобы они указывали на соответствующие `vault_переменные`, используя синтаксис `jinja2`, и убедиться, что `vault` файл зашифрован с помощью хранилища.
