@@ -91,7 +91,7 @@ APT работает поверх более низкоуровневого ин
     - `-xvf` - извлечь архив
     - `-z` - использовать сжатие `gzip`
     ```bash
-    tar -cvfz backup.tar.gz /var/www
+    tar -xvfz backup.tar.gz /var/www
     ```
 ### Разное
 
