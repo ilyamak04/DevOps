@@ -834,11 +834,11 @@ ansible-galaxy install <роль> -p /etc/ansible/roles
 `tests/`: Папка для тестирования роли. Здесь можно хранить тестовые плейбуки и инвентарь.
 
 **Приоритет переменных**
-1. Переменные командной строки
+1. Переменные командной строки (`-e` или `--extra-vars`)
 2. Переменные, объявленные в `vars` внутри плейбука.
-3. Переменные, объявленные в `vars` внутри роли.
-5. Переменные, определенные в `host_vars`.
+3. Переменные, определенные в `host_vars`.
 4. Переменные, определенные в `group_vars`.
+5. Переменные, объявленные в `vars` внутри роли.
 6. Переменные, объявленные в `defaults` внутри роли.
 
 Зависимости можно указать в файле `meta/main.yml`. Например, если роль зависит от другой роли, то она будет автоматически вызвана:
@@ -1127,3 +1127,68 @@ asdf: 42
 - Используйте контроль версий. Храните ваши плейбуки и файл `inventory` в `git` (или другой системе контроля версий) и фиксируйте изменения, когда вносите в них изменения. Таким образом, у вас будет аудиторский след, описывающий, когда и почему вы изменили правила, автоматизирующие вашу инфраструктуру.
 
 - **Переменные и секреты:** начнём с `group_vars/` подкаталога, названного в честь группы. Внутри этого подкаталога создайте два файла с именами `vars` и `vault`. Внутри файла `vars` определите все необходимые переменные, включая любые конфиденциальные. Затем скопируйте все конфиденциальные переменные в файл `vault` и добавьте к этим переменным префикс `vault_`. Вам следует настроить переменные в `vars` файле так, чтобы они указывали на соответствующие `vault_переменные`, используя синтаксис `jinja2`, и убедиться, что `vault` файл зашифрован с помощью хранилища.
+
+### Опять про роли
+```yml
+# roles/example/tasks/main.yml
+- name: added in 2.4, previously you used 'include'
+  import_tasks: redhat.yml
+  when: ansible_facts['os_family']|lower == 'redhat'
+- import_tasks: debian.yml
+  when: ansible_facts['os_family']|lower == 'debian'
+
+# roles/example/tasks/redhat.yml
+- yum:
+    name: "httpd"
+    state: present
+
+# roles/example/tasks/debian.yml
+- apt:
+    name: "apache2"
+    state: present
+```
+- Начиная с версии Ansible 2.4, вы теперь можете использовать роли в составе любых других задач с помощью `import_role` или `include_role`:
+```yml
+- hosts: webservers
+  tasks:
+  - debug:
+      msg: "before we run our role"
+  - import_role:
+      name: example
+  - include_role:
+      name: example
+  - debug:
+      msg: "after we ran our role"
+```
+Когда роли определяются классическим способом, они рассматриваются как статические импорты и обрабатываются во время анализа плейбука.
+```yml
+# Можно указывать путь к роли
+- hosts: webservers
+  roles:
+    - role: '/path/to/my/roles/common'
+```
+```yml
+# Можно переопределять переменные 
+- hosts: webservers
+  roles:
+    - common
+    - role: foo_app_instance
+      vars:
+         dir: '/opt/a'
+         app_port: 5000
+    - role: foo_app_instance
+      vars:
+         dir: '/opt/b'
+         app_port: 5001
+```
+```yml
+# playbook.yml
+- hosts: webservers
+  roles:
+  - foo
+  - foo
+
+# roles/foo/meta/main.yml
+allow_duplicates: true
+```
+`allow_duplicates: true` - В этом примере `foo` будет выполнено дважды, поскольку мы явно включили эту функцию
