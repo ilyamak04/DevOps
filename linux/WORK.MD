@@ -1,0 +1,2 @@
+- `firewall-cmd --zone=public --add-masquerade --permanent`
+- `firewall-cmd --reload`
