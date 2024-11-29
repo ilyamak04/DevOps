@@ -117,3 +117,8 @@ WantedBy=multi-user.target
 
 WEB-INF/classes или src/main/resources          
 `<configuration scan="true" scanPeriod="30 seconds">` 
+
+--- 
+
+`sudo useradd -M -d /opt/_Tomcat -g tomcat --system tomcat`
+

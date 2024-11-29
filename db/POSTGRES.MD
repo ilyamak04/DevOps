@@ -75,3 +75,12 @@ FROM pg_stat_activity;
 psql -U postgres -t -c "SELECT datname FROM pg_database WHERE datistemplate = false;"
 
 psql -U postgres -d postgres -c "SELECT datname FROM pg_database WHERE datistemplate = false;" -t -A
+
+
+--- 
+
+`SELECT pg_terminate_backend( pid ) FROM pg_stat_activity WHERE pid <> pg_backend_pid( ) AND datname = 'name of database';` - отключить все подключения к бд
+
+---
+
+`ALTER DATABASE "downloader8097" RENAME TO "downloader_vo_8097";` - переименовать БД
