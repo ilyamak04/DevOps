@@ -84,3 +84,118 @@ psql -U postgres -d postgres -c "SELECT datname FROM pg_database WHERE datistemp
 ---
 
 `ALTER DATABASE "downloader8097" RENAME TO "downloader_vo_8097";` - переименовать БД
+
+--- 
+Анализ БД 
+
+```
+SELECT pid, usename, datname, client_addr, client_port, application_name, state
+FROM pg_stat_activity
+WHERE datname = current_database();
+```
+```
+SELECT pid,
+	   now() - query_start AS runtime_query,
+       state,
+       query,
+       usename,
+       datname
+FROM pg_stat_activity
+WHERE state = 'active' and datname = current_database()
+ORDER BY runtime_query DESC;
+``` 
+```
+SELECT pid,
+	   now() - xact_start  AS transaction_time,
+       state,
+       query,
+       usename,
+       datname
+FROM pg_stat_activity
+WHERE state IN ('active', 'idle in transaction') and datname = current_database()
+ORDER BY transaction_time DESC;
+```
+```
+SELECT 
+    pid,                                       -- Идентификатор процесса
+    state,                                     -- Состояние процесса
+    now() - query_start AS query_runtime,      -- Время выполнения текущего запроса
+    now() - xact_start AS transaction_runtime, -- Время выполнения транзакции
+    query,                                     -- Текущий запрос
+    usename,                                   -- Пользователь
+    datname,                                   -- База данных
+    xact_start                                 -- Время начала транзакции
+FROM pg_stat_activity
+WHERE state IN ('active', 'idle in transaction') 
+  AND datname = current_database()              
+ORDER BY transaction_runtime DESC;              
+```
+```
+# использование памяти и ресурсов
+SELECT *
+FROM pg_stat_database;
+```
+- `datid` — Идентификатор базы данных (OID).
+- `datname` — Имя базы данных.
+- `numbackends` — Количество активных соединений (клиентов) с этой базой.
+- `xact_commit` — Общее количество успешно завершённых транзакций.
+- `xact_rollback` — Общее количество откатов транзакций.
+- `blks_read` — Количество блоков, считанных с диска.
+- `blks_hit` — Количество блоков, найденных в кеше (попадания в shared_buffers).
+- `tup_returned` — Количество строк, возвращённых клиенту.
+- `tup_fetched` — Количество строк, извлечённых (например, SELECT).
+- `tup_inserted` — Количество вставленных строк (INSERT).
+- `tup_updated` — Количество обновлённых строк (UPDATE).
+- `tup_deleted` — Количество удалённых строк (DELETE).
+- `conflicts` — Количество конфликтов (например, из-за репликации).
+- `temp_files` — Количество временных файлов, созданных сервером.
+- `temp_bytes` — Количество данных, записанных во временные файлы (в байтах).
+- `deadlocks` — Количество взаимоблокировок.
+- `blk_read_time` — Общее время чтения блоков с диска (в миллисекундах).
+- `blk_write_time` — Общее время записи блоков на диск (в миллисекундах).
+
+```
+# системная инфа
+SELECT *
+FROM pg_stat_bgwriter;
+```
+```
+# Блокировки
+SELECT 
+ blocked_locks.pid AS blocked_pid,
+ blocked_activity.usename AS blocked_user,
+ blocking_locks.pid AS blocking_pid,
+ blocking_activity.usename AS blocking_user,
+ blocking_activity.state AS blocking_state,
+ blocked_activity.query AS blocked_statement,
+ blocking_activity.query AS current_statement_in_blocking_process,
+ blocked_locks.locktype AS blocked_locktype, 
+ blocking_locks.locktype AS blocking_locktype
+FROM pg_catalog.pg_locks blocked_locks
+JOIN pg_catalog.pg_stat_activity blocked_activity 
+  ON blocked_activity.pid = blocked_locks.pid
+JOIN pg_catalog.pg_locks blocking_locks 
+  ON blocking_locks.locktype = blocked_locks.locktype
+ AND blocking_locks.DATABASE IS NOT DISTINCT FROM blocked_locks.DATABASE
+ AND blocking_locks.relation IS NOT DISTINCT FROM blocked_locks.relation
+ AND blocking_locks.page IS NOT DISTINCT FROM blocked_locks.page
+ AND blocking_locks.tuple IS NOT DISTINCT FROM blocked_locks.tuple
+ AND blocking_locks.virtualxid IS NOT DISTINCT FROM blocked_locks.virtualxid
+ AND blocking_locks.transactionid IS NOT DISTINCT FROM blocked_locks.transactionid
+ AND blocking_locks.classid IS NOT DISTINCT FROM blocked_locks.classid
+ AND blocking_locks.objid IS NOT DISTINCT FROM blocked_locks.objid
+ AND blocking_locks.objsubid IS NOT DISTINCT FROM blocked_locks.objsubid
+ AND blocking_locks.pid != blocked_locks.pid 
+JOIN pg_catalog.pg_stat_activity blocking_activity 
+  ON blocking_activity.pid = blocking_locks.pid
+WHERE NOT blocked_locks.GRANTED;
+```
+```
+EXPLAIN ANALYZE
+SELECT <ваш_запрос>;
+```
+```
+SELECT pg_terminate_backend(pid)
+FROM pg_stat_activity
+WHERE pid = <process_id>;
+```

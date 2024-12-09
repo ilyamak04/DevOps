@@ -15,3 +15,10 @@
     - PIDS	- Количество процессов внутри контейнера.
 
 - `docker info`
+
+- `docker volume ls`
+- `docker volume inspect <volume_name>`
+- `docker inspect <container_name> | grep -i mount`
+- `docker inspect <container_name> | grep -i volumes`
+- `docker port <container_name>`
+- `docker inspect <container_name> | grep -i port`

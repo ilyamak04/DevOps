@@ -139,6 +139,7 @@ APT работает поверх более низкоуровневого ин
     tar -xvfz backup.tar.gz /var/www
     ```
 - `sudo tar -zxvf apache-activemq-6.1.3-bin.tar.gz -C /opt` - распаковать в каталог
+- `tar xvf apache-tomcat-9.0*tar.gz -C /opt/_Tomcat/application1-8080 --strip-components=1` - каталог apache-tomcat-9.0* не будет создан
 `dmesg -T` - логи ядра системы 
 
 ### Система
@@ -258,3 +259,7 @@ mount [OPTIONS] <DEVICE> <MOUNTPOINT>
 
 - `lsscsi` - отображает устройства, подключенные через интерфейс SCSI
 - `cp /etc/fstab{,.bkp}` == `cp /etc/fstab /etc/fstab.bkp`
+
+
+- `grep -A 10 <файл>` - вывести 10 строк после найденного файла
+- `htop -p ` - процесс на таком-то порту 

@@ -125,3 +125,32 @@ http {
     include /etc/nginx/sites-enabled/*;
 }
 ```
+
+--- 
+
+`error_page 500 502 503 504 /50x.html;`
+
+---
+
+```
+upstream server-group {
+    server srv-server1.bft.local:8080;
+    server srv-server2.bft.local:8080;
+    keepalive 60;
+}
+```
+---
+```
+location / {
+    return 301 https://srvname.test.srv/app;
+}
+```
+`return <status_code> [<url>];`
+
+```
+error_page 500 502 503 504 = @custom_error;
+location @custom_error {
+    return 302 http://example.com/error-page;
+}
+```
+---
