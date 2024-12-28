@@ -121,14 +121,20 @@ SELECT
     state,                                     -- Состояние процесса
     now() - query_start AS query_runtime,      -- Время выполнения текущего запроса
     now() - xact_start AS transaction_runtime, -- Время выполнения транзакции
+    application_name,
     query,                                     -- Текущий запрос
     usename,                                   -- Пользователь
     datname,                                   -- База данных
     xact_start                                 -- Время начала транзакции
 FROM pg_stat_activity
-WHERE state IN ('active', 'idle in transaction') 
-  AND datname = current_database()              
+WHERE state IN ('active', 'idle in transaction')           
 ORDER BY transaction_runtime DESC;              
+```
+```
+SELECT pg_database.datname,
+       pg_size_pretty(pg_database_size(pg_database.datname)) AS size
+FROM pg_database
+ORDER BY pg_database_size(pg_database.datname) DESC;
 ```
 ```
 # использование памяти и ресурсов
@@ -199,3 +205,19 @@ SELECT pg_terminate_backend(pid)
 FROM pg_stat_activity
 WHERE pid = <process_id>;
 ```
+
+---
+
+где находится postgresql.conf
+
+`SHOW config_file;`
+
+- `/var/lib/pgsql/12/data/postgresql.conf`
+- `/etc/postgresql/12/main/postgresql.conf`
+
+---
+
+
+`SHOW shared_preload_libraries;`
+- `pg_config --pkglibdir` - библиотеки постгреса
+

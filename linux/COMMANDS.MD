@@ -140,7 +140,7 @@ APT работает поверх более низкоуровневого ин
     ```
 - `sudo tar -zxvf apache-activemq-6.1.3-bin.tar.gz -C /opt` - распаковать в каталог
 - `tar xvf apache-tomcat-9.0*tar.gz -C /opt/_Tomcat/application1-8080 --strip-components=1` - каталог apache-tomcat-9.0* не будет создан
-`dmesg -T` - логи ядра системы 
+- `dmesg -T` - логи ядра системы 
 
 ### Система
 
@@ -263,3 +263,6 @@ mount [OPTIONS] <DEVICE> <MOUNTPOINT>
 
 - `grep -A 10 <файл>` - вывести 10 строк после найденного файла
 - `htop -p ` - процесс на таком-то порту 
+- `truncate -s 0 /var/log/messages`
+
+- `sudo find / -name pg_config 2>/dev/null`
