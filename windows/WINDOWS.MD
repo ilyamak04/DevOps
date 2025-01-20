@@ -32,3 +32,8 @@
 - `diskmgmt.msc`
 
 `AOMEI Partition Assistant` - для работы с дисками
+
+##### Реестр 
+
+- `Win+R`
+- `regedit` 
