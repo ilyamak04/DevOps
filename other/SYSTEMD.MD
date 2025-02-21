@@ -1,4 +1,4 @@
-### Создание юнита
+#### Создание юнита
 
 - в каталоге для хранения unit файлов `cd /etc/systemd/system/` создаём файл с расширением `.service` для службы
 - ```bash
@@ -25,10 +25,14 @@ WantedBy=multi-user.target  # Указывает, что сервис долже
 ```
 >  `multi-user` - многопользовательский текстовый режим
 - `sudo systemctl daemon-reload` - обновить конфигурацию systemd
-- `sudo systemctl enable myservice.service`
-- `sudo systemctl start myservice.service`
-- `sudo systemctl status myservice.service`
+- `sudo systemctl enable myservice.service` - включает автозапуск юнита при перезагрузке системы
+- `sudo systemctl start myservice.service` - запустить юнит
+- `sudo systemctl status myservice.service` - статус юнита
 
+#### Где же живут эти ваши юниты 
 
+- `/etc/systemd/system/` - юниты созданные пользователем
+- `/usr/lib/systemd/system/ или /lib/systemd/system/` - юниты, которые создаются менеджерами пакетов при установке ПО
+- `/run/systemd/system/` - временные юниты, созданные во время работы чего-то (например, контейнера) 
 
 

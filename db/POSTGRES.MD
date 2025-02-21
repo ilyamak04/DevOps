@@ -64,17 +64,9 @@ ADD CONSTRAINT age_check CHECK (age >= 18);
 ```
 
 
-SELECT pid, usename, datname, client_addr, client_port, application_name, state
-FROM pg_stat_activity;
-
-
-SELECT usename, client_addr, client_port, state
-FROM pg_stat_activity;
-
-
 psql -U postgres -t -c "SELECT datname FROM pg_database WHERE datistemplate = false;"
 
-psql -U postgres -d postgres -c "SELECT datname FROM pg_database WHERE datistemplate = false;" -t -A
+psql -U postgres -d postgres -c "SELECT datname FROM pg_database WHERE datistemplate = false
 
 
 --- 
@@ -93,28 +85,7 @@ SELECT pid, usename, datname, client_addr, client_port, application_name, state
 FROM pg_stat_activity
 WHERE datname = current_database();
 ```
-```
-SELECT pid,
-	   now() - query_start AS runtime_query,
-       state,
-       query,
-       usename,
-       datname
-FROM pg_stat_activity
-WHERE state = 'active' and datname = current_database()
-ORDER BY runtime_query DESC;
-``` 
-```
-SELECT pid,
-	   now() - xact_start  AS transaction_time,
-       state,
-       query,
-       usename,
-       datname
-FROM pg_stat_activity
-WHERE state IN ('active', 'idle in transaction') and datname = current_database()
-ORDER BY transaction_time DESC;
-```
+
 ```
 SELECT 
     pid,                                       -- Идентификатор процесса
@@ -127,7 +98,7 @@ SELECT
     datname,                                   -- База данных
     xact_start                                 -- Время начала транзакции
 FROM pg_stat_activity
-WHERE state IN ('active', 'idle in transaction')           
+WHERE state IN ('active', 'idle in transaction') and datname = current_database()         
 ORDER BY transaction_runtime DESC;              
 ```
 ```
@@ -216,8 +187,48 @@ WHERE pid = <process_id>;
 - `/etc/postgresql/12/main/postgresql.conf`
 
 ---
+```
+# Размер таблиц в бд
+select schemaname as table_schema,
+relname as table_name,
+pg_size_pretty(pg_total_relation_size(relid)) as total_size,
+pg_size_pretty(pg_relation_size(relid)) as data_size,
+pg_size_pretty(pg_total_relation_size(relid) - pg_relation_size(relid))
+as index_size
+from pg_catalog.pg_statio_user_tables
+order by pg_total_relation_size(relid) desc,
+pg_relation_size(relid) desc;
+```
+```
+# Размер базы в целом
+select pg_size_pretty(pg_database_size('название базы'));
+# Размер индекса в бд
+SELECT
+    pg_size_pretty(SUM(pg_relation_size(indexrelid))) AS total_index_size
+FROM
+    pg_stat_all_indexes;
+```
+```
+# Индексы в бд по отдельности
+SELECT
+    pg_size_pretty(pg_relation_size(indexrelid)) AS index_size,
+    indexrelname AS index_name,
+    t.relname AS table_name
+FROM
+    pg_stat_all_indexes
+JOIN
+    pg_class t ON t.oid = pg_stat_all_indexes.relid
+ORDER BY
+    pg_relation_size(indexrelid) DESC;
 
-
+# Сумма индексов в таблице
+SELECT
+    pg_size_pretty(SUM(pg_relation_size(indexrelid))) AS total_index_size
+FROM
+    pg_stat_all_indexes
+WHERE
+    relname = 'svip';
+```
 `SHOW shared_preload_libraries;`
 - `pg_config --pkglibdir` - библиотеки постгреса
 

@@ -154,3 +154,46 @@ location @custom_error {
 }
 ```
 ---
+
+● Last-modified (If-Modified-Since)
+● Expires
+● Etag (If-None-Match)
+● Cache-control
+add_header Cache-Control "max-age=31536000, public, no-transform, immutable";
+
+
+ Gzip
+gzip on;
+gzip_static on;
+gzip_types text/plain text/css text/xml application/javascript application/json image/svg+xml 
+application/font-ttf;
+gzip_comp_level 6;
+gzip_proxied any;
+gzip_min_length 1000;
+gzip_vary on;
+● Brotli*
+brotli_static on;
+brotli on;
+brotli_comp_level 6;
+brotli_types text/plain text/xml text/css application/javascript application/json image/x-icon 
+image/svg+xml;
+
+
+статическое и динамическое сжатие
+
+
+eepalive_timeout 300;
+keepalive_requests 10000;
+ssl_prefer_server_ciphers on;
+ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+ssl_ciphers 
+ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-S
+HA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-S
+HA384:DHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA:ECDHE
+-RSA-AES128-SHA:ECDHE-ECDSA-AES256-SHA384:ECDHE-RSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:
+DHE-RSA-AES128-SHA256:DHE-RSA-AES256-SHA256:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AE
+S128-SHA:AES256-SHA:DES-CBC3-SHA;
+ssl_early_data on;
+ssl_session_tickets on;
+ssl_session_timeout 28h;
+ssl_session_cache shared:SSL:10m;
